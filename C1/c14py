@@ -1,0 +1,93 @@
+import psycopg2
+
+def conectar_bd():
+    try:
+        conexion = psycopg2.connect(
+            host="localhost",
+            port=5432,
+            database="CORTO1",
+            user="postgres",
+            password="1234"
+        )
+        return conexion
+    except Exception as e:
+        print(f"Error al conectar a la base de datos: {e}")
+        return None
+
+def crear_tabla(conexion):
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("CREATE TABLE IF NOT EXISTS codigo14 (id SERIAL PRIMARY KEY, modelo INT, km_recorridos INT, estado TEXT, resultado TEXT);")
+            conexion.commit()
+    except Exception as e:
+        print(f"Error al crear la tabla: {e}")
+
+def clasificar_taxi(modelo, km_recorridos):
+    if modelo < 2007 and km_recorridos > 20000:
+        return "Renovar"
+    elif 2007 <= modelo <= 2013 and km_recorridos == 20000:
+        return "Mantenimiento"
+    elif modelo > 2013 and km_recorridos < 10000:
+        return "Óptimas condiciones"
+    else:
+        return "Mecánico"
+
+def guardar_en_bd(conexion, modelo, km_recorridos, estado, resultado):
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("INSERT INTO codigo14 (modelo, km_recorridos, estado, resultado) VALUES (%s, %s, %s, %s);", (modelo, km_recorridos, estado, resultado))
+            conexion.commit()
+    except Exception as e:
+        conexion.rollback()  # Revertir la transacción en caso de error
+        print(f"Error al guardar en la base de datos: {e}")
+
+def mostrar_historial(conexion):
+    try:
+        with conexion.cursor() as cursor:
+            cursor.execute("SELECT modelo, km_recorridos, estado, resultado FROM codigo14;")
+            historial = cursor.fetchall()
+            return historial
+    except Exception as e:
+        print(f"Error al obtener el historial: {e}")
+        return None
+
+# Conectar a la base de datos y crear la tabla
+conexion = conectar_bd()
+if conexion:
+    crear_tabla(conexion)
+
+try:
+    while True:
+        print("\nPrograma para clasificar taxis:")
+        modelo = int(input("Ingrese el modelo del taxi: "))
+        km_recorridos = int(input("Ingrese los kilómetros recorridos del taxi: "))
+
+        estado = clasificar_taxi(modelo, km_recorridos)
+        resultado = f"El taxi está en estado {estado}"
+
+        print(f"Resultado: {resultado}")
+
+        guardar_en_bd(conexion, modelo, km_recorridos, estado, resultado)
+
+        mostrar_historial_opcion = input("¿Desea ver el historial? (S/N): ").upper()
+        if mostrar_historial_opcion == 'S':
+            historial = mostrar_historial(conexion)
+            if historial:
+                print("\nHistorial de Taxis:")
+                for registro in historial:
+                    print(f"Modelo: {registro[0]}, Kilómetros Recorridos: {registro[1]}, Estado: {registro[2]}, Resultado: {registro[3]}")
+            else:
+                print("No hay historial disponible.")
+
+        continuar_opcion = input("¿Desea clasificar más taxis? (S/N): ").upper()
+        if continuar_opcion != 'S':
+            break
+
+except Exception as e:
+    print(f"Error inesperado: {e}")
+
+finally:
+    # Cerrar la conexión al salir del programa
+    if conexion:
+        conexion.close()
+
